@@ -1,0 +1,6 @@
+*.exe
+*.exe~
+profiles.json
+assignments.json
+nul
+AGENTS.md
