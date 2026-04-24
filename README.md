@@ -6,6 +6,8 @@ A Windows desktop application to monitor running processes and manage CPU core a
 ![Go](https://img.shields.io/badge/language-Go-00ADD8)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
+![demo](assets/demo.gif)
+
 ## Features
 
 - Real-time process list with CPU usage monitoring
