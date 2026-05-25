@@ -1,4 +1,5 @@
 let NUM_CORES = 16;
+function allCoresMask() { return (1n << BigInt(NUM_CORES)) - 1n; }
 const API     = 'http://localhost:8080';
 
 const tbody       = document.getElementById('tbody');
@@ -11,7 +12,7 @@ const updEl       = document.getElementById('updated');
 let processes      = [];
 let selected       = null;
 let selectedGroup  = null;
-let newProfileMask = 0;
+let newProfileMask = 0n;
 let configs        = [];
 let assignments    = {};
 let filterMode     = 'free';
@@ -50,7 +51,7 @@ async function apiSaveProfile(name, mask) {
   await fetch(`${API}/profiles`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, mask })
+    body: JSON.stringify({ name, mask: Number(mask) })
   });
   await refreshConfigs();
 }
@@ -61,8 +62,8 @@ async function apiDeleteProfile(name) {
 }
 
 function applyConfig(mask) {
-  if (selected)      { selected.mask = mask;     syncEditorDOM(`editor-${selected.pid}`, selected); }
-  if (selectedGroup) { selectedGroup.mask = mask; syncEditorDOM(groupEditorId(selectedGroup.name), selectedGroup); }
+  if (selected)      { selected.mask = BigInt(mask);     syncEditorDOM(`editor-${selected.pid}`, selected); }
+  if (selectedGroup) { selectedGroup.mask = BigInt(mask); syncEditorDOM(groupEditorId(selectedGroup.name), selectedGroup); }
 }
 
 function renderConfigPanel() {
@@ -91,7 +92,7 @@ function renderNewProfileCores() {
   const container = document.getElementById('np-cores');
   if (!container) return;
   container.innerHTML = Array.from({ length: NUM_CORES }, (_, i) => {
-    const on = (newProfileMask & (1 << i)) !== 0;
+    const on = (newProfileMask & (1n << BigInt(i))) !== 0n;
     return `<button class="np-core ${on?'on':''}" onclick="toggleNewCore(${i})">${i}</button>`;
   }).join('');
   const mv = document.getElementById('np-mask-val');
@@ -99,12 +100,12 @@ function renderNewProfileCores() {
 }
 
 function toggleNewCore(i) {
-  newProfileMask ^= (1 << i);
+  newProfileMask ^= (1n << BigInt(i));
   renderNewProfileCores();
 }
 
 function setNewProfileMask(m) {
-  newProfileMask = m;
+  newProfileMask = BigInt(m);
   renderNewProfileCores();
 }
 
@@ -114,7 +115,7 @@ async function createProfileFromTop() {
   if (!name) { input?.focus(); return; }
   await apiSaveProfile(name, newProfileMask);
   input.value = '';
-  newProfileMask = 0;
+  newProfileMask = 0n;
   renderNewProfileCores();
   document.getElementById('new-profile-panel').style.display = 'none';
 }
@@ -229,12 +230,12 @@ async function openAffinity(pid) {
   if (selected?.pid === pid) { selected = null; render(); return; }
   const res  = await fetch(`${API}/processes/${pid}/affinity`);
   const data = await res.json();
-  selected = { pid, mask: data.mask };
+  selected = { pid, mask: BigInt(data.mask) };
   render();
 }
 
 function toggleCore(i) {
-  selected.mask ^= (1 << i);
+  selected.mask ^= (1n << BigInt(i));
   syncEditorDOM(`editor-${selected.pid}`, selected);
 }
 
@@ -245,7 +246,7 @@ async function saveAffinity() {
   await fetch(`${API}/processes/${selected.pid}/affinity`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mask: selected.mask })
+    body: JSON.stringify({ mask: Number(selected.mask) })
   });
   selected = null;
   render();
@@ -256,12 +257,12 @@ async function openGroupAffinity(name, pids) {
   if (selectedGroup?.name === name) { selectedGroup = null; render(); return; }
   const res  = await fetch(`${API}/processes/${pids[0]}/affinity`);
   const data = await res.json();
-  selectedGroup = { name, mask: data.mask };
+  selectedGroup = { name, mask: BigInt(data.mask) };
   render();
 }
 
 function toggleGroupCore(i) {
-  selectedGroup.mask ^= (1 << i);
+  selectedGroup.mask ^= (1n << BigInt(i));
   syncEditorDOM(groupEditorId(selectedGroup.name), selectedGroup);
 }
 
@@ -273,7 +274,7 @@ async function saveGroupAffinity(pids) {
     fetch(`${API}/processes/${pid}/affinity`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mask: selectedGroup.mask })
+      body: JSON.stringify({ mask: Number(selectedGroup.mask) })
     })
   ));
   selectedGroup = null;
@@ -295,14 +296,14 @@ function syncEditorDOM(id, state) {
   if (!row) return;
   row.querySelector('.mask-val').textContent = `mask: ${state.mask}`;
   row.querySelectorAll('.core').forEach((btn, i) => {
-    btn.classList.toggle('on', (state.mask & (1 << i)) !== 0);
+    btn.classList.toggle('on', (state.mask & (1n << BigInt(i))) !== 0n);
   });
-  row.querySelector('.save-btn').disabled = state.mask === 0;
+  row.querySelector('.save-btn').disabled = state.mask === 0n;
 }
 
 function buildEditorRow(id, state, onToggle, onAll, onNone, onSave, extraClass) {
   const cores = Array.from({ length: NUM_CORES }, (_, i) => {
-    const on = (state.mask & (1 << i)) !== 0;
+    const on = (state.mask & (1n << BigInt(i))) !== 0n;
     return `<button class="core ${on?'on':''}" onclick="${onToggle}(${i})">${i}</button>`;
   }).join('');
 
@@ -323,7 +324,7 @@ function buildEditorRow(id, state, onToggle, onAll, onNone, onSave, extraClass) 
               <button class="link-btn" onclick="${onAll}">Todos</button>
               <button class="link-btn" onclick="${onNone}">Ninguno</button>
               <span class="mask-val">mask: ${state.mask}</span>
-              <button class="save-btn" onclick="${onSave}" ${state.mask===0?'disabled':''}>Guardar</button>
+              <button class="save-btn" onclick="${onSave}" ${state.mask===0n?'disabled':''}>Guardar</button>
             </div>
           </div>
           ${presetHTML}
@@ -393,8 +394,8 @@ function render() {
     if (open && grpSel) {
       html += buildEditorRow(
         editorId, selectedGroup, 'toggleGroupCore',
-        `selectedGroup.mask=(1<<${NUM_CORES})-1;syncEditorDOM('${editorId}',selectedGroup)`,
-        `selectedGroup.mask=1;syncEditorDOM('${editorId}',selectedGroup)`,
+        `selectedGroup.mask=allCoresMask();syncEditorDOM('${editorId}',selectedGroup)`,
+        `selectedGroup.mask=1n;syncEditorDOM('${editorId}',selectedGroup)`,
         `saveGroupAffinity([${freePids}])`,
         'group-editor-row'
       );
@@ -424,8 +425,8 @@ function render() {
         if (isSel) {
           html += buildEditorRow(
             procId, selected, 'toggleCore',
-            `selected.mask=(1<<${NUM_CORES})-1;syncEditorDOM('${procId}',selected)`,
-            `selected.mask=1;syncEditorDOM('${procId}',selected)`,
+            `selected.mask=allCoresMask();syncEditorDOM('${procId}',selected)`,
+            `selected.mask=1n;syncEditorDOM('${procId}',selected)`,
             'saveAffinity()'
           );
         }

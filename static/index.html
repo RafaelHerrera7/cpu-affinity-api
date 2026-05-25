@@ -36,7 +36,7 @@
         <span class="configs-label">Nuevo perfil</span>
         <input class="np-name" id="np-name" placeholder="Nombre del perfil..." onkeydown="if(event.key==='Enter')createProfileFromTop()" />
         <div class="np-actions">
-          <button class="link-btn" onclick="setNewProfileMask((1<<NUM_CORES)-1)">Todos</button>
+          <button class="link-btn" onclick="setNewProfileMask(allCoresMask())">Todos</button>
           <button class="link-btn" onclick="setNewProfileMask(0)">Ninguno</button>
           <span class="mask-val" id="np-mask-val">mask: 0</span>
           <button class="save-as-btn" onclick="createProfileFromTop()">Crear</button>
@@ -46,11 +46,11 @@
       <div class="np-cores" id="np-cores"></div>
       <div class="np-quick">
         <span class="np-quick-label">Rápido:</span>
-        <span class="preset-chip" onclick="setNewProfileMask((1<<NUM_CORES)-1)">Todos los cores</span>
-        <span class="preset-chip" onclick="setNewProfileMask(0x5555&((1<<NUM_CORES)-1))">Cores pares</span>
-        <span class="preset-chip" onclick="setNewProfileMask(0xAAAA&((1<<NUM_CORES)-1))">Cores impares</span>
-        <span class="preset-chip" onclick="setNewProfileMask(0xFF&((1<<NUM_CORES)-1))">Primeros 8</span>
-        <span class="preset-chip" onclick="setNewProfileMask(0x0F)">Primeros 4</span>
+        <span class="preset-chip" onclick="setNewProfileMask(allCoresMask())">Todos los cores</span>
+        <span class="preset-chip" onclick="setNewProfileMask(0x5555n&allCoresMask())">Cores pares</span>
+        <span class="preset-chip" onclick="setNewProfileMask(0xAAAAn&allCoresMask())">Cores impares</span>
+        <span class="preset-chip" onclick="setNewProfileMask(0xFFn&allCoresMask())">Primeros 8</span>
+        <span class="preset-chip" onclick="setNewProfileMask(0x0Fn)">Primeros 4</span>
       </div>
     </div>
 
