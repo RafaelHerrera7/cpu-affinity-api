@@ -255,6 +255,7 @@ async function saveAffinity() {
 // ── group affinity ───────────────────────────────────────────────
 async function openGroupAffinity(name, pids) {
   if (selectedGroup?.name === name) { selectedGroup = null; render(); return; }
+  expandedGroups.add(name);
   const res  = await fetch(`${API}/processes/${pids[0]}/affinity`);
   const data = await res.json();
   selectedGroup = { name, mask: BigInt(data.mask) };
