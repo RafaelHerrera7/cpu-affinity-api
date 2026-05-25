@@ -23,6 +23,7 @@ func startServer() {
 	mux.HandleFunc("GET /profiles", api.GetProfilesHandler)
 	mux.HandleFunc("POST /profiles", api.SaveProfileHandler)
 	mux.HandleFunc("DELETE /profiles/{name}", api.DeleteProfileHandler)
+	mux.HandleFunc("GET /version", api.VersionHandler)
 	mux.HandleFunc("GET /ws", api.WSHandler)
 	mux.HandleFunc("GET /ws/processes", api.ProcessesWSHandler)
 	

@@ -481,6 +481,11 @@ renderNewProfileCores();
     const { cores } = await sys.json();
     NUM_CORES = cores;
   } catch {}
+  try {
+    const res = await fetch(`${API}/version`);
+    const { version } = await res.json();
+    document.getElementById('version').textContent = version;
+  } catch {}
   await Promise.all([refreshConfigs(), refreshAssignments()]);
   connect();
 })();
