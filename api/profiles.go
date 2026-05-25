@@ -27,9 +27,9 @@ func init() {
 	profilesPath = filepath.Join(filepath.Dir(exe), "profiles.json")
 }
 
-func readProfilesFile() ([]Profile, error) {
-	profilesMu.RLock()
-	defer profilesMu.RUnlock()
+// helpers de disco sin locks — el llamador debe tener el lock adecuado
+
+func readProfilesFromDisk() ([]Profile, error) {
 	data, err := os.ReadFile(profilesPath)
 	if os.IsNotExist(err) {
 		return []Profile{}, nil
@@ -44,14 +44,34 @@ func readProfilesFile() ([]Profile, error) {
 	return profiles, nil
 }
 
-func writeProfilesFile(profiles []Profile) error {
-	profilesMu.Lock()
-	defer profilesMu.Unlock()
+func writeProfilesToDisk(profiles []Profile) error {
 	data, err := json.MarshalIndent(profiles, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(profilesPath, data, 0644)
+}
+
+// readProfilesFile es para lecturas puras (watcher, GET handler).
+func readProfilesFile() ([]Profile, error) {
+	profilesMu.RLock()
+	defer profilesMu.RUnlock()
+	return readProfilesFromDisk()
+}
+
+// modifyProfiles ejecuta fn bajo write lock, garantizando que lectura y escritura son atómicas.
+func modifyProfiles(fn func([]Profile) ([]Profile, error)) error {
+	profilesMu.Lock()
+	defer profilesMu.Unlock()
+	profiles, err := readProfilesFromDisk()
+	if err != nil {
+		return err
+	}
+	updated, err := fn(profiles)
+	if err != nil {
+		return err
+	}
+	return writeProfilesToDisk(updated)
 }
 
 func GetProfilesHandler(w http.ResponseWriter, r *http.Request) {
@@ -74,23 +94,16 @@ func SaveProfileHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name required", http.StatusBadRequest)
 		return
 	}
-	profiles, err := readProfilesFile()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	found := false
-	for i, existing := range profiles {
-		if existing.Name == p.Name {
-			profiles[i] = p
-			found = true
-			break
+	err := modifyProfiles(func(profiles []Profile) ([]Profile, error) {
+		for i, existing := range profiles {
+			if existing.Name == p.Name {
+				profiles[i] = p
+				return profiles, nil
+			}
 		}
-	}
-	if !found {
-		profiles = append(profiles, p)
-	}
-	if err := writeProfilesFile(profiles); err != nil {
+		return append(profiles, p), nil
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -99,18 +112,16 @@ func SaveProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 func DeleteProfileHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	profiles, err := readProfilesFile()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	filtered := profiles[:0]
-	for _, p := range profiles {
-		if p.Name != name {
-			filtered = append(filtered, p)
+	err := modifyProfiles(func(profiles []Profile) ([]Profile, error) {
+		filtered := profiles[:0]
+		for _, p := range profiles {
+			if p.Name != name {
+				filtered = append(filtered, p)
+			}
 		}
-	}
-	if err := writeProfilesFile(filtered); err != nil {
+		return filtered, nil
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

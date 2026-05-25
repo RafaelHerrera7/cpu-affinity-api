@@ -22,9 +22,9 @@ func init() {
 	assignmentsPath = filepath.Join(filepath.Dir(exe), "assignments.json")
 }
 
-func readAssignments() (map[string]string, error) {
-	assignmentsMu.RLock()
-	defer assignmentsMu.RUnlock()
+// helpers de disco sin locks — el llamador debe tener el lock adecuado
+
+func readAssignmentsFromDisk() (map[string]string, error) {
 	data, err := os.ReadFile(assignmentsPath)
 	if os.IsNotExist(err) {
 		return map[string]string{}, nil
@@ -39,14 +39,33 @@ func readAssignments() (map[string]string, error) {
 	return a, nil
 }
 
-func writeAssignments(a map[string]string) error {
-	assignmentsMu.Lock()
-	defer assignmentsMu.Unlock()
+func writeAssignmentsToDisk(a map[string]string) error {
 	data, err := json.MarshalIndent(a, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(assignmentsPath, data, 0644)
+}
+
+// readAssignments es para lecturas puras (watcher, GET handler).
+func readAssignments() (map[string]string, error) {
+	assignmentsMu.RLock()
+	defer assignmentsMu.RUnlock()
+	return readAssignmentsFromDisk()
+}
+
+// modifyAssignments ejecuta fn bajo write lock, garantizando que lectura y escritura son atómicas.
+func modifyAssignments(fn func(map[string]string) error) error {
+	assignmentsMu.Lock()
+	defer assignmentsMu.Unlock()
+	a, err := readAssignmentsFromDisk()
+	if err != nil {
+		return err
+	}
+	if err := fn(a); err != nil {
+		return err
+	}
+	return writeAssignmentsToDisk(a)
 }
 
 func GetAssignmentsHandler(w http.ResponseWriter, r *http.Request) {
@@ -72,17 +91,15 @@ func SaveAssignmentHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name required", http.StatusBadRequest)
 		return
 	}
-	a, err := readAssignments()
+	err := modifyAssignments(func(a map[string]string) error {
+		if body.Profile == "" {
+			delete(a, body.Name)
+		} else {
+			a[body.Name] = body.Profile
+		}
+		return nil
+	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if body.Profile == "" {
-		delete(a, body.Name)
-	} else {
-		a[body.Name] = body.Profile
-	}
-	if err := writeAssignments(a); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

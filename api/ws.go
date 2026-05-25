@@ -45,21 +45,36 @@ func ProcessesWSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		procs, err := win32.ListProcesses()
-		if err != nil {
-			log.Println("list processes error:", err)
-			break
-		}
-		data, err := json.Marshal(procs)
-		if err != nil {
-			break
-		}
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			break
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			procs, err := win32.ListProcesses()
+			if err != nil {
+				log.Println("list processes error:", err)
+				return
+			}
+			data, err := json.Marshal(procs)
+			if err != nil {
+				return
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				return
+			}
 		}
 	}
 }
